@@ -1,9 +1,7 @@
-const DEFAULT_CONFIG = {
-  uploadUrl: 'http://placeholder:9001/',
-  uploadPeriodMinutes: 1
-};
+importScripts('shared-config.js');
 
-const STORAGE_KEY = 'historyUpload';
+const { DEFAULT_UPLOAD_CONFIG, STORAGE_KEY, ensureDeviceName } =
+  HistoryUploadConfig;
 const ALARM_NAME = 'uploadHistory';
 const MAX_HISTORY_RESULTS = 86400 * 90 * 10;
 const UPLOAD_MODE_ALL = 'all';
@@ -14,7 +12,7 @@ let uploadInProgress = false;
 async function getUploadState() {
   const data = await chrome.storage.local.get(STORAGE_KEY);
   return {
-    ...DEFAULT_CONFIG,
+    ...DEFAULT_UPLOAD_CONFIG,
     ...(data[STORAGE_KEY] || {})
   };
 }
@@ -32,6 +30,8 @@ async function saveUploadState(updates) {
 }
 
 async function ensureUploadAlarm() {
+  await ensureDeviceName();
+
   const state = await getUploadState();
 
   await chrome.alarms.create(ALARM_NAME, {
@@ -40,7 +40,10 @@ async function ensureUploadAlarm() {
 }
 
 function getEffectiveUploadPeriod(state) {
-  return (state && state.uploadPeriodMinutes) || DEFAULT_CONFIG.uploadPeriodMinutes;
+  return (
+    (state && state.uploadPeriodMinutes) ||
+    DEFAULT_UPLOAD_CONFIG.uploadPeriodMinutes
+  );
 }
 
 function serializeHistoryItem(item) {
@@ -73,6 +76,7 @@ async function uploadHistory(options = {}) {
   const mode = options.mode || UPLOAD_MODE_INCREMENTAL;
 
   try {
+    const deviceName = await ensureDeviceName();
     const state = await getUploadState();
     const rangeStartTime = getRangeStartTime(state, mode);
 
@@ -99,6 +103,7 @@ async function uploadHistory(options = {}) {
         },
         body: JSON.stringify({
           uploadedAt,
+          deviceName,
           rangeStartTime,
           rangeEndTime,
           items

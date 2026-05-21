@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-const DEFAULT_UPLOAD_CONFIG = {
-  uploadUrl: 'http://placeholder:9001/',
-  uploadPeriodMinutes: 1
-};
-
-const STORAGE_KEY = 'historyUpload';
+const {
+  DEFAULT_UPLOAD_CONFIG,
+  STORAGE_KEY,
+  generateDeviceName,
+  ensureDeviceName
+} = HistoryUploadConfig;
 const UPLOAD_MODE_ALL = 'all';
 const UPLOAD_MODE_INCREMENTAL = 'incremental';
 
@@ -119,6 +119,8 @@ function validateUploadPeriod(uploadPeriodMinutes) {
 }
 
 async function loadUploadSettings() {
+  await ensureDeviceName();
+
   const data = await chrome.storage.local.get(STORAGE_KEY);
   const state = data[STORAGE_KEY] || {};
 
@@ -126,6 +128,7 @@ async function loadUploadSettings() {
   const uploadPeriodInput = document.getElementById(
     'uploadPeriodMinutes_input'
   );
+  const deviceNameInput = document.getElementById('deviceName_input');
 
   uploadUrlInput.value =
     state.uploadUrl && state.uploadUrl !== DEFAULT_UPLOAD_CONFIG.uploadUrl
@@ -136,6 +139,7 @@ async function loadUploadSettings() {
     state.uploadPeriodMinutes !== DEFAULT_UPLOAD_CONFIG.uploadPeriodMinutes
       ? String(state.uploadPeriodMinutes)
       : '';
+  deviceNameInput.value = state.deviceName || '';
 
   renderLastSuccessfulUploadTime(state);
 }
@@ -148,12 +152,14 @@ async function saveUploadSettings(event) {
   const uploadPeriodInput = document.getElementById(
     'uploadPeriodMinutes_input'
   );
+  const deviceNameInput = document.getElementById('deviceName_input');
 
   try {
     const uploadUrl = validateUploadUrl(uploadUrlInput.value.trim());
     const uploadPeriodMinutes = validateUploadPeriod(
       uploadPeriodInput.value.trim()
     );
+    const deviceName = deviceNameInput.value.trim() || generateDeviceName();
 
     if (uploadUrl) {
       const origin = normalizePermissionOrigin(uploadUrl);
@@ -181,10 +187,13 @@ async function saveUploadSettings(event) {
       delete nextState.uploadPeriodMinutes;
     }
 
+    nextState.deviceName = deviceName;
+
     await chrome.storage.local.set({
       [STORAGE_KEY]: nextState
     });
 
+    deviceNameInput.value = deviceName;
     setSettingsStatus('Saved.', 'success');
   } catch (error) {
     setSettingsStatus(error.message || String(error), 'error');
@@ -262,7 +271,18 @@ function initializeUploadSettings() {
       return;
     }
 
-    renderLastSuccessfulUploadTime(changes[STORAGE_KEY].newValue || {});
+    const nextState = changes[STORAGE_KEY].newValue || {};
+    const previousState = changes[STORAGE_KEY].oldValue || {};
+    const deviceNameInput = document.getElementById('deviceName_input');
+
+    renderLastSuccessfulUploadTime(nextState);
+    if (
+      deviceNameInput &&
+      nextState.deviceName !== previousState.deviceName &&
+      document.activeElement !== deviceNameInput
+    ) {
+      deviceNameInput.value = nextState.deviceName || '';
+    }
   });
 }
 
