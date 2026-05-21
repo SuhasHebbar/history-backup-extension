@@ -18,6 +18,8 @@ const DEFAULT_UPLOAD_CONFIG = {
 };
 
 const STORAGE_KEY = 'historyUpload';
+const UPLOAD_MODE_ALL = 'all';
+const UPLOAD_MODE_INCREMENTAL = 'incremental';
 
 function getStatusElement() {
   return document.getElementById('uploadSettings_status');
@@ -31,6 +33,19 @@ function setSettingsStatus(message, type) {
 
 function getLastSuccessfulUploadTimeElement() {
   return document.getElementById('lastSuccessfulUploadTime_value');
+}
+
+function getManualUploadButtons() {
+  return [
+    document.getElementById('uploadAllHistory_button'),
+    document.getElementById('uploadIncrementalHistory_button')
+  ];
+}
+
+function setManualUploadButtonsDisabled(disabled) {
+  getManualUploadButtons().forEach((button) => {
+    button.disabled = disabled;
+  });
 }
 
 function formatLastSuccessfulUploadTime(lastSuccessfulUploadTime) {
@@ -176,9 +191,67 @@ async function saveUploadSettings(event) {
   }
 }
 
+function sendUploadMessage(mode) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({ type: 'uploadHistory', mode }, (response) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+
+      if (!response) {
+        reject(new Error('No response from background upload worker.'));
+        return;
+      }
+
+      if (!response.ok) {
+        reject(new Error(response.error || 'Upload failed.'));
+        return;
+      }
+
+      resolve(response);
+    });
+  });
+}
+
+async function runManualUpload(mode) {
+  setSettingsStatus('Uploading history...', '');
+  setManualUploadButtonsDisabled(true);
+
+  try {
+    const response = await sendUploadMessage(mode);
+    setSettingsStatus(
+      `Uploaded ${response.uploadedCount} history item${
+        response.uploadedCount === 1 ? '' : 's'
+      }.`,
+      'success'
+    );
+  } catch (error) {
+    setSettingsStatus(error.message || String(error), 'error');
+  } finally {
+    setManualUploadButtonsDisabled(false);
+  }
+}
+
+function initializeManualUploadButtons() {
+  const uploadAllButton = document.getElementById('uploadAllHistory_button');
+  const uploadIncrementalButton = document.getElementById(
+    'uploadIncrementalHistory_button'
+  );
+
+  uploadAllButton.addEventListener('click', () => {
+    runManualUpload(UPLOAD_MODE_ALL);
+  });
+
+  uploadIncrementalButton.addEventListener('click', () => {
+    runManualUpload(UPLOAD_MODE_INCREMENTAL);
+  });
+}
+
 function initializeUploadSettings() {
   const form = document.getElementById('uploadSettings_form');
   form.addEventListener('submit', saveUploadSettings);
+  initializeManualUploadButtons();
 
   loadUploadSettings().catch((error) => {
     setSettingsStatus(error.message || String(error), 'error');

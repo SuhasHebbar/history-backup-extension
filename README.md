@@ -11,6 +11,10 @@ It stores upload configuration and state in `chrome.storage.local`, including th
 successful upload. On first run, it backfills all available history. After that, it only uploads history
 items newer than the last successful upload.
 
+The popup also includes manual upload buttons. "Upload all history" uploads all history items Chrome
+returns regardless of the saved timestamp. "Upload since last successful upload" uploads only items newer
+than the saved timestamp. A successful manual upload updates the last successful upload timestamp.
+
 Upload requests are sent as `POST http://placeholder:9001/` with a JSON body containing:
 
 - `uploadedAt`
@@ -42,3 +46,5 @@ This extension uses:
 6. Run a server at the configured upload URL, or at `http://placeholder:9001/` when using the default, and
    verify that the background service worker sends history uploads on the configured schedule. The popup
    shows the last successful upload date and time, or `Never` before the first successful upload.
+7. Use the popup's manual upload buttons to upload all available history or only history since the last
+   successful upload.

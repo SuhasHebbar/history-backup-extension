@@ -6,6 +6,8 @@ const DEFAULT_CONFIG = {
 const STORAGE_KEY = 'historyUpload';
 const ALARM_NAME = 'uploadHistory';
 const MAX_HISTORY_RESULTS = 86400 * 90 * 10;
+const UPLOAD_MODE_ALL = 'all';
+const UPLOAD_MODE_INCREMENTAL = 'incremental';
 
 let uploadInProgress = false;
 
@@ -52,18 +54,27 @@ function serializeHistoryItem(item) {
   };
 }
 
-async function uploadHistory() {
+function getRangeStartTime(state, mode) {
+  if (mode === UPLOAD_MODE_ALL) {
+    return 0;
+  }
+
+  return state.lastSuccessfulUploadTime || 0;
+}
+
+async function uploadHistory(options = {}) {
   if (uploadInProgress) {
-    return;
+    throw new Error('Upload already in progress.');
   }
 
   uploadInProgress = true;
 
   const rangeEndTime = Date.now();
+  const mode = options.mode || UPLOAD_MODE_INCREMENTAL;
 
   try {
     const state = await getUploadState();
-    const rangeStartTime = state.lastSuccessfulUploadTime || 0;
+    const rangeStartTime = getRangeStartTime(state, mode);
 
     await saveUploadState({
       lastAttemptTime: rangeEndTime,
@@ -104,10 +115,18 @@ async function uploadHistory() {
       lastUploadedCount: items.length,
       lastError: null
     });
+
+    return {
+      uploadedCount: items.length,
+      rangeStartTime,
+      rangeEndTime
+    };
   } catch (error) {
     await saveUploadState({
       lastError: error.message || String(error)
     });
+
+    throw error;
   } finally {
     uploadInProgress = false;
   }
@@ -127,10 +146,37 @@ chrome.runtime.onStartup.addListener(() => {
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === ALARM_NAME) {
-    uploadHistory().catch((error) => {
+    uploadHistory({ mode: UPLOAD_MODE_INCREMENTAL }).catch((error) => {
       console.error('Failed to upload history:', error);
     });
   }
+});
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (!message || message.type !== 'uploadHistory') {
+    return false;
+  }
+
+  const mode =
+    message.mode === UPLOAD_MODE_ALL ? UPLOAD_MODE_ALL : UPLOAD_MODE_INCREMENTAL;
+
+  uploadHistory({ mode })
+    .then((result) => {
+      sendResponse({
+        ok: true,
+        uploadedCount: result.uploadedCount,
+        rangeStartTime: result.rangeStartTime,
+        rangeEndTime: result.rangeEndTime
+      });
+    })
+    .catch((error) => {
+      sendResponse({
+        ok: false,
+        error: error.message || String(error)
+      });
+    });
+
+  return true;
 });
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
