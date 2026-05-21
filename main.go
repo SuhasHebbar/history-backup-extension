@@ -366,6 +366,28 @@ func loadConfig(path string) (Config, error) {
 	return cfg, nil
 }
 
+// resolveSettings merges CLI flag values with config-file values.
+// CLI values take precedence; the built-in default for addr is ":8080".
+// It returns an error when workDir cannot be determined.
+func resolveSettings(cliAddr, cliWorkDir string, cfg Config) (addr, workDir string, err error) {
+	addr = cliAddr
+	if addr == "" {
+		addr = cfg.Addr
+	}
+	if addr == "" {
+		addr = ":8080"
+	}
+
+	workDir = cliWorkDir
+	if workDir == "" {
+		workDir = cfg.WorkDir
+	}
+	if workDir == "" {
+		return "", "", fmt.Errorf("--working-directory is required (via flag or config file)")
+	}
+	return addr, workDir, nil
+}
+
 // Entry point
 // ---------------------------------------------------------------------------
 
@@ -380,22 +402,9 @@ func main() {
 		log.Fatalf("load config: %v", err)
 	}
 
-	// CLI flags take precedence; fall back to config file, then built-in default.
-	effectiveAddr := *addr
-	if effectiveAddr == "" {
-		effectiveAddr = cfg.Addr
-	}
-	if effectiveAddr == "" {
-		effectiveAddr = ":8080"
-	}
-
-	effectiveWorkDir := *workDir
-	if effectiveWorkDir == "" {
-		effectiveWorkDir = cfg.WorkDir
-	}
-
-	if effectiveWorkDir == "" {
-		fmt.Fprintln(os.Stderr, "error: --working-directory is required (via flag or config file)")
+	effectiveAddr, effectiveWorkDir, err := resolveSettings(*addr, *workDir, cfg)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
 		flag.Usage()
 		os.Exit(1)
 	}
