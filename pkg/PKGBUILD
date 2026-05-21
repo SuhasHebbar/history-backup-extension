@@ -9,7 +9,7 @@ license=('MIT')
 depends=('glibc')
 makedepends=('go' 'gcc' 'git')
 backup=('etc/history-server/config.json')
-source=("$pkgname::git+file:///home/suhas/proj/history-server")
+source=("$pkgname::git+file://${startdir}/..")
 sha256sums=('SKIP')
 
 pkgver() {
@@ -35,14 +35,14 @@ package() {
   install -Dm755 history-server "$pkgdir/usr/bin/history-server"
 
   # Systemd service
-  install -Dm644 history-server.service "$pkgdir/usr/lib/systemd/system/history-server.service"
+  install -Dm644 pkg/history-server.service "$pkgdir/usr/lib/systemd/system/history-server.service"
 
   # sysusers.d — creates the history-server system user/group at install time
-  install -Dm644 history-server.sysusers "$pkgdir/usr/lib/sysusers.d/history-server.conf"
+  install -Dm644 pkg/history-server.sysusers "$pkgdir/usr/lib/sysusers.d/history-server.conf"
 
   # tmpfiles.d — creates /var/lib/history-server (0750, history-server:history-server)
   #              and /etc/history-server (0755, root:root) at install time
-  install -Dm644 history-server.tmpfiles "$pkgdir/usr/lib/tmpfiles.d/history-server.conf"
+  install -Dm644 pkg/history-server.tmpfiles "$pkgdir/usr/lib/tmpfiles.d/history-server.conf"
 
   # Default config — mode 644 (no secrets in default config; admin can tighten later)
   install -Dm644 /dev/null "$pkgdir/etc/history-server/config.json"
