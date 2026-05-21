@@ -1,6 +1,6 @@
 # Maintainer: Suhas Hebbar <shebbar832@gmail.com>
 pkgname=history-server
-pkgver=r1.0000000
+pkgver=r6.a63c6b7
 pkgrel=1
 pkgdesc="HTTP server that receives and persists browser history uploads from a Chrome extension"
 arch=('x86_64')
