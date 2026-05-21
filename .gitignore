@@ -1,0 +1,59 @@
+# Compiled binaries and build output
+history-server
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Go workspace files
+go.work
+go.work.sum
+
+# Go module download cache (should not be committed)
+vendor/
+
+# Test cache and coverage
+*.coverprofile
+coverage.out
+coverage.html
+
+# OS-specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Editor and IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.vim/
+*.sublime-project
+*.sublime-workspace
+
+# Environment and secrets
+.env
+.env.*
+*.env
+!*.env.example
+secrets/
+*.pem
+*.key
+*.crt
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/

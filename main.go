@@ -337,25 +337,74 @@ func nullableInt(i *int) interface{} {
 }
 
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Configuration
+// ---------------------------------------------------------------------------
+
+// Config holds values that can be supplied via a JSON config file.
+type Config struct {
+	Addr    string `json:"addr"`
+	WorkDir string `json:"working-directory"`
+}
+
+// loadConfig reads and parses a JSON config file at path.
+// If path is empty it returns an empty Config without error.
+func loadConfig(path string) (Config, error) {
+	if path == "" {
+		return Config{}, nil
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return Config{}, fmt.Errorf("open config file: %w", err)
+	}
+	defer f.Close()
+
+	var cfg Config
+	if err := json.NewDecoder(f).Decode(&cfg); err != nil {
+		return Config{}, fmt.Errorf("parse config file: %w", err)
+	}
+	return cfg, nil
+}
+
 // Entry point
 // ---------------------------------------------------------------------------
 
 func main() {
-	addr := flag.String("addr", ":8080", "listen address (host:port)")
-	workDir := flag.String("working-directory", "", "path to working directory for the SQLite database (required)")
+	configPath := flag.String("config", "", "path to JSON config file (optional)")
+	addr := flag.String("addr", "", "listen address (host:port) — overrides config file")
+	workDir := flag.String("working-directory", "", "path to working directory for the SQLite database — overrides config file")
 	flag.Parse()
 
-	if *workDir == "" {
-		fmt.Fprintln(os.Stderr, "error: --working-directory is required")
+	cfg, err := loadConfig(*configPath)
+	if err != nil {
+		log.Fatalf("load config: %v", err)
+	}
+
+	// CLI flags take precedence; fall back to config file, then built-in default.
+	effectiveAddr := *addr
+	if effectiveAddr == "" {
+		effectiveAddr = cfg.Addr
+	}
+	if effectiveAddr == "" {
+		effectiveAddr = ":8080"
+	}
+
+	effectiveWorkDir := *workDir
+	if effectiveWorkDir == "" {
+		effectiveWorkDir = cfg.WorkDir
+	}
+
+	if effectiveWorkDir == "" {
+		fmt.Fprintln(os.Stderr, "error: --working-directory is required (via flag or config file)")
 		flag.Usage()
 		os.Exit(1)
 	}
 
-	if err := os.MkdirAll(*workDir, 0755); err != nil {
-		log.Fatalf("create working directory %q: %v", *workDir, err)
+	if err := os.MkdirAll(effectiveWorkDir, 0755); err != nil {
+		log.Fatalf("create working directory %q: %v", effectiveWorkDir, err)
 	}
 
-	dbPath := filepath.Join(*workDir, "history.db")
+	dbPath := filepath.Join(effectiveWorkDir, "history.db")
 	log.Printf("Opening database at %s", dbPath)
 
 	db, err := openDB(dbPath)
@@ -366,8 +415,8 @@ func main() {
 
 	http.HandleFunc("/", handler(db))
 
-	log.Printf("Listening on %s", *addr)
-	if err := http.ListenAndServe(*addr, nil); err != nil {
+	log.Printf("Listening on %s", effectiveAddr)
+	if err := http.ListenAndServe(effectiveAddr, nil); err != nil {
 		log.Fatalf("server error: %v", err)
 	}
 }
