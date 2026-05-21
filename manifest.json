@@ -5,6 +5,7 @@
   "description": "Uses the chrome.history API to display in a popup the user's most visited pages.",
   "permissions": ["history", "storage", "alarms"],
   "host_permissions": ["http://placeholder:9001/*"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
   "background": {
     "service_worker": "service-worker.js"
   },

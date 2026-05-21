@@ -12,6 +12,153 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+const DEFAULT_UPLOAD_CONFIG = {
+  uploadUrl: 'http://placeholder:9001/',
+  uploadPeriodMinutes: 1
+};
+
+const STORAGE_KEY = 'historyUpload';
+
+function getStatusElement() {
+  return document.getElementById('uploadSettings_status');
+}
+
+function setSettingsStatus(message, type) {
+  const statusElement = getStatusElement();
+  statusElement.textContent = message;
+  statusElement.className = type || '';
+}
+
+function normalizePermissionOrigin(uploadUrl) {
+  const url = new URL(uploadUrl);
+  return `${url.protocol}//${url.hostname}/*`;
+}
+
+function requestPermission(origin) {
+  return new Promise((resolve) => {
+    chrome.permissions.request({ origins: [origin] }, (granted) => {
+      if (chrome.runtime.lastError) {
+        resolve(false);
+        return;
+      }
+
+      resolve(granted);
+    });
+  });
+}
+
+function validateUploadUrl(uploadUrl) {
+  if (!uploadUrl) {
+    return null;
+  }
+
+  let url;
+  try {
+    url = new URL(uploadUrl);
+  } catch (error) {
+    throw new Error('Upload URL must be a valid URL.');
+  }
+
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error('Upload URL must start with http:// or https://.');
+  }
+
+  return url.href;
+}
+
+function validateUploadPeriod(uploadPeriodMinutes) {
+  if (!uploadPeriodMinutes) {
+    return null;
+  }
+
+  const value = Number(uploadPeriodMinutes);
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error('Upload period must be a positive number.');
+  }
+
+  return value;
+}
+
+async function loadUploadSettings() {
+  const data = await chrome.storage.local.get(STORAGE_KEY);
+  const state = data[STORAGE_KEY] || {};
+
+  const uploadUrlInput = document.getElementById('uploadUrl_input');
+  const uploadPeriodInput = document.getElementById(
+    'uploadPeriodMinutes_input'
+  );
+
+  uploadUrlInput.value =
+    state.uploadUrl && state.uploadUrl !== DEFAULT_UPLOAD_CONFIG.uploadUrl
+      ? state.uploadUrl
+      : '';
+  uploadPeriodInput.value =
+    state.uploadPeriodMinutes &&
+    state.uploadPeriodMinutes !== DEFAULT_UPLOAD_CONFIG.uploadPeriodMinutes
+      ? String(state.uploadPeriodMinutes)
+      : '';
+}
+
+async function saveUploadSettings(event) {
+  event.preventDefault();
+  setSettingsStatus('', '');
+
+  const uploadUrlInput = document.getElementById('uploadUrl_input');
+  const uploadPeriodInput = document.getElementById(
+    'uploadPeriodMinutes_input'
+  );
+
+  try {
+    const uploadUrl = validateUploadUrl(uploadUrlInput.value.trim());
+    const uploadPeriodMinutes = validateUploadPeriod(
+      uploadPeriodInput.value.trim()
+    );
+
+    if (uploadUrl) {
+      const origin = normalizePermissionOrigin(uploadUrl);
+      const granted = await requestPermission(origin);
+
+      if (!granted) {
+        throw new Error('Permission is required to upload to that URL.');
+      }
+    }
+
+    const data = await chrome.storage.local.get(STORAGE_KEY);
+    const nextState = {
+      ...(data[STORAGE_KEY] || {})
+    };
+
+    if (uploadUrl) {
+      nextState.uploadUrl = uploadUrl;
+    } else {
+      delete nextState.uploadUrl;
+    }
+
+    if (uploadPeriodMinutes) {
+      nextState.uploadPeriodMinutes = uploadPeriodMinutes;
+    } else {
+      delete nextState.uploadPeriodMinutes;
+    }
+
+    await chrome.storage.local.set({
+      [STORAGE_KEY]: nextState
+    });
+
+    setSettingsStatus('Saved.', 'success');
+  } catch (error) {
+    setSettingsStatus(error.message || String(error), 'error');
+  }
+}
+
+function initializeUploadSettings() {
+  const form = document.getElementById('uploadSettings_form');
+  form.addEventListener('submit', saveUploadSettings);
+
+  loadUploadSettings().catch((error) => {
+    setSettingsStatus(error.message || String(error), 'error');
+  });
+}
+
 // Event listner for clicks on links in a browser action popup.
 // Open the link in a new tab of the current window.
 function onAnchorClick(event) {
@@ -126,5 +273,6 @@ function buildTypedUrlList(divName) {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
+  initializeUploadSettings();
   buildTypedUrlList('typedUrl_div');
 });

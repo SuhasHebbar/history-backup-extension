@@ -5,7 +5,7 @@ const DEFAULT_CONFIG = {
 
 const STORAGE_KEY = 'historyUpload';
 const ALARM_NAME = 'uploadHistory';
-const MAX_HISTORY_RESULTS = 100000;
+const MAX_HISTORY_RESULTS = 86400 * 90 * 10;
 
 let uploadInProgress = false;
 
@@ -18,7 +18,9 @@ async function getUploadState() {
 }
 
 async function saveUploadState(updates) {
-  const currentState = await getUploadState();
+  const data = await chrome.storage.local.get(STORAGE_KEY);
+  const currentState = data[STORAGE_KEY] || {};
+
   await chrome.storage.local.set({
     [STORAGE_KEY]: {
       ...currentState,
@@ -33,6 +35,10 @@ async function ensureUploadAlarm() {
   await chrome.alarms.create(ALARM_NAME, {
     periodInMinutes: state.uploadPeriodMinutes
   });
+}
+
+function getEffectiveUploadPeriod(state) {
+  return (state && state.uploadPeriodMinutes) || DEFAULT_CONFIG.uploadPeriodMinutes;
 }
 
 function serializeHistoryItem(item) {
@@ -123,6 +129,21 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === ALARM_NAME) {
     uploadHistory().catch((error) => {
       console.error('Failed to upload history:', error);
+    });
+  }
+});
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== 'local' || !changes[STORAGE_KEY]) {
+    return;
+  }
+
+  const oldPeriod = getEffectiveUploadPeriod(changes[STORAGE_KEY].oldValue);
+  const newPeriod = getEffectiveUploadPeriod(changes[STORAGE_KEY].newValue);
+
+  if (oldPeriod !== newPeriod) {
+    ensureUploadAlarm().catch((error) => {
+      console.error('Failed to update history upload alarm:', error);
     });
   }
 });

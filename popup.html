@@ -4,12 +4,62 @@
     <title>Recently Typed URLs</title>
     <style>
       body {
-        min-width: 250px;
+        min-width: 300px;
+        font-family: sans-serif;
+      }
+
+      label {
+        display: block;
+        margin-top: 8px;
+      }
+
+      input {
+        box-sizing: border-box;
+        width: 100%;
+      }
+
+      button {
+        margin-top: 8px;
+      }
+
+      #uploadSettings_status {
+        min-height: 1.2em;
+        margin-top: 6px;
+      }
+
+      .error {
+        color: #b00020;
+      }
+
+      .success {
+        color: #0b6b0b;
       }
     </style>
   </head>
 
   <body>
+    <h2>Upload Settings:</h2>
+    <form id="uploadSettings_form">
+      <label for="uploadUrl_input">Upload URL</label>
+      <input
+        id="uploadUrl_input"
+        name="uploadUrl"
+        type="text"
+        placeholder="http://placeholder:9001/"
+      />
+
+      <label for="uploadPeriodMinutes_input">Upload period minutes</label>
+      <input
+        id="uploadPeriodMinutes_input"
+        name="uploadPeriodMinutes"
+        type="text"
+        placeholder="1"
+      />
+
+      <button type="submit">Save</button>
+      <div id="uploadSettings_status" role="status"></div>
+    </form>
+
     <h2>Recently Typed URLs:</h2>
     <script src="popup.js"></script>
     <div id="typedUrl_div"></div>

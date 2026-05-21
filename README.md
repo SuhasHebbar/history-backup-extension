@@ -7,9 +7,10 @@ This sample uses the [`chrome.history`](https://developer.chrome.com/docs/extens
 This extension calls `chrome.history.search()` to scrape the browser's history and count occurrences of each visited URL.
 
 The background service worker also uploads history incrementally once per minute to `http://placeholder:9001/`.
-It stores upload configuration and state in `chrome.storage.local`, including the timestamp of the last
-successful upload. On first run, it backfills all available history. After that, it only uploads history
-items newer than the last successful upload.
+The popup can configure a custom upload URL and upload period. If either field is left blank, the
+extension uses the default value. It stores upload configuration and state in `chrome.storage.local`,
+including the timestamp of the last successful upload. On first run, it backfills all available history.
+After that, it only uploads history items newer than the last successful upload.
 
 Upload requests are sent as `POST http://placeholder:9001/` with a JSON body containing:
 
@@ -29,6 +30,7 @@ This extension uses:
 - `storage` to persist upload configuration and state.
 - `alarms` to run the upload every minute.
 - `http://placeholder:9001/*` host access to upload history.
+- Optional `http://*/*` and `https://*/*` host access, requested when saving a custom upload URL.
 
 ## Running this extension
 
@@ -36,5 +38,7 @@ This extension uses:
 2. Load this directory in Chrome as an [unpacked extension](https://developer.chrome.com/docs/extensions/mv3/getstarted/development-basics/#load-unpacked).
 3. Pin the extension to the browser's taskbar.
 4. Click on the extension's action button to view your most visited pages.
-5. Run a server at `http://placeholder:9001/` and verify that the background service worker sends history
-   uploads about once per minute.
+5. Optionally enter a custom upload URL or upload period in the popup and click Save. Chrome asks for
+   host permission when saving a custom upload URL.
+6. Run a server at the configured upload URL, or at `http://placeholder:9001/` when using the default, and
+   verify that the background service worker sends history uploads on the configured schedule.
