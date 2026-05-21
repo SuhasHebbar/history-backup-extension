@@ -1,7 +1,7 @@
 const HistoryUploadConfig = (() => {
   const DEFAULT_UPLOAD_CONFIG = {
     uploadUrl: 'http://placeholder:9001/',
-    uploadPeriodMinutes: 1
+    uploadPeriodMinutes: 60
   };
 
   const STORAGE_KEY = 'historyUpload';
