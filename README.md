@@ -5,10 +5,11 @@ This extension uses the [`chrome.history`](https://developer.chrome.com/docs/ext
 ## Overview
 
 The background service worker uploads history incrementally once per minute to `http://placeholder:9001/`.
-The popup can configure a custom upload URL and upload period. If either field is left blank, the
-extension uses the default value. It stores upload configuration and state in `chrome.storage.local`,
-including the timestamp of the last successful upload. On first run, it backfills all available history.
-After that, it only uploads history items newer than the last successful upload.
+The popup can configure a custom upload URL and upload period, and displays the date and time of the
+last successful upload. If either settings field is left blank, the extension uses the default value.
+It stores upload configuration and state in `chrome.storage.local`, including the timestamp of the last
+successful upload. On first run, it backfills all available history. After that, it only uploads history
+items newer than the last successful upload.
 
 Upload requests are sent as `POST http://placeholder:9001/` with a JSON body containing:
 
@@ -39,4 +40,5 @@ This extension uses:
 5. Optionally enter a custom upload URL or upload period in the popup and click Save. Chrome asks for
    host permission when saving a custom upload URL.
 6. Run a server at the configured upload URL, or at `http://placeholder:9001/` when using the default, and
-   verify that the background service worker sends history uploads on the configured schedule.
+   verify that the background service worker sends history uploads on the configured schedule. The popup
+   shows the last successful upload date and time, or `Never` before the first successful upload.

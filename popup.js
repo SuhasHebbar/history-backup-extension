@@ -29,6 +29,30 @@ function setSettingsStatus(message, type) {
   statusElement.className = type || '';
 }
 
+function getLastSuccessfulUploadTimeElement() {
+  return document.getElementById('lastSuccessfulUploadTime_value');
+}
+
+function formatLastSuccessfulUploadTime(lastSuccessfulUploadTime) {
+  if (!lastSuccessfulUploadTime) {
+    return 'Never';
+  }
+
+  const date = new Date(lastSuccessfulUploadTime);
+  if (Number.isNaN(date.getTime())) {
+    return 'Never';
+  }
+
+  return date.toLocaleString();
+}
+
+function renderLastSuccessfulUploadTime(state) {
+  const element = getLastSuccessfulUploadTimeElement();
+  element.textContent = formatLastSuccessfulUploadTime(
+    state && state.lastSuccessfulUploadTime
+  );
+}
+
 function normalizePermissionOrigin(uploadUrl) {
   const url = new URL(uploadUrl);
   return `${url.protocol}//${url.hostname}/*`;
@@ -97,6 +121,8 @@ async function loadUploadSettings() {
     state.uploadPeriodMinutes !== DEFAULT_UPLOAD_CONFIG.uploadPeriodMinutes
       ? String(state.uploadPeriodMinutes)
       : '';
+
+  renderLastSuccessfulUploadTime(state);
 }
 
 async function saveUploadSettings(event) {
@@ -156,6 +182,14 @@ function initializeUploadSettings() {
 
   loadUploadSettings().catch((error) => {
     setSettingsStatus(error.message || String(error), 'error');
+  });
+
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== 'local' || !changes[STORAGE_KEY]) {
+      return;
+    }
+
+    renderLastSuccessfulUploadTime(changes[STORAGE_KEY].newValue || {});
   });
 }
 
