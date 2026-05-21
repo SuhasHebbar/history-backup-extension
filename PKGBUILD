@@ -1,0 +1,55 @@
+# Maintainer: Suhas Hebbar <shebbar832@gmail.com>
+pkgname=history-server
+pkgver=r1.0000000
+pkgrel=1
+pkgdesc="HTTP server that receives and persists browser history uploads from a Chrome extension"
+arch=('x86_64')
+url="https://github.com/suhas/history-server"
+license=('MIT')
+depends=('glibc')
+makedepends=('go' 'gcc' 'git')
+backup=('etc/history-server/config.json')
+source=("$pkgname::git+file:///home/suhas/proj/history-server")
+sha256sums=('SKIP')
+
+pkgver() {
+  cd "$pkgname"
+  if git describe --long --tags &>/dev/null; then
+    git describe --long --tags | sed 's/^v//;s/-\([0-9]*\)-g/+r\1./;s/-/./g'
+  else
+    printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+  fi
+}
+
+build() {
+  cd "$pkgname"
+  export CGO_ENABLED=1
+  export GOFLAGS="-buildmode=pie"
+  go build -trimpath -o history-server .
+}
+
+package() {
+  cd "$pkgname"
+
+  # Binary
+  install -Dm755 history-server "$pkgdir/usr/bin/history-server"
+
+  # Systemd service
+  install -Dm644 history-server.service "$pkgdir/usr/lib/systemd/system/history-server.service"
+
+  # sysusers.d — creates the history-server system user/group at install time
+  install -Dm644 history-server.sysusers "$pkgdir/usr/lib/sysusers.d/history-server.conf"
+
+  # tmpfiles.d — creates /var/lib/history-server (0750, history-server:history-server)
+  #              and /etc/history-server (0755, root:root) at install time
+  install -Dm644 history-server.tmpfiles "$pkgdir/usr/lib/tmpfiles.d/history-server.conf"
+
+  # Default config — mode 644 (no secrets in default config; admin can tighten later)
+  install -Dm644 /dev/null "$pkgdir/etc/history-server/config.json"
+  cat > "$pkgdir/etc/history-server/config.json" <<'EOF'
+{
+  "addr": "0.0.0.0:9001",
+  "working-directory": "/var/lib/history-server"
+}
+EOF
+}
