@@ -1,0 +1,105 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Upload Settings</title>
+    <style>
+      body {
+        min-width: 300px;
+        font-family: sans-serif;
+      }
+
+      label {
+        display: block;
+        margin-top: 8px;
+      }
+
+      input {
+        box-sizing: border-box;
+        width: 100%;
+      }
+
+      button {
+        margin-top: 8px;
+      }
+
+      .manual-upload-actions {
+        margin-top: 12px;
+      }
+
+      .manual-upload-actions button {
+        display: block;
+        width: 100%;
+      }
+
+      .upload-status {
+        margin-top: 12px;
+        font-size: 0.9em;
+      }
+
+      .upload-status dt {
+        font-weight: bold;
+      }
+
+      .upload-status dd {
+        margin: 2px 0 0;
+      }
+
+      #uploadSettings_status {
+        min-height: 1.2em;
+        margin-top: 6px;
+      }
+
+      .error {
+        color: #b00020;
+      }
+
+      .success {
+        color: #0b6b0b;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h2>Upload Settings</h2>
+    <form id="uploadSettings_form">
+      <label for="uploadUrl_input">Upload URL</label>
+      <input
+        id="uploadUrl_input"
+        name="uploadUrl"
+        type="text"
+        placeholder="https://your-server.example.com/"
+      />
+
+      <label for="uploadPeriodMinutes_input">Upload period minutes</label>
+      <input
+        id="uploadPeriodMinutes_input"
+        name="uploadPeriodMinutes"
+        type="text"
+        placeholder="1"
+      />
+
+      <label for="deviceName_input">Device name</label>
+      <input id="deviceName_input" name="deviceName" type="text" />
+
+      <button type="submit">Save</button>
+      <div id="uploadSettings_status" role="status"></div>
+    </form>
+
+    <div class="manual-upload-actions">
+      <button id="uploadAllHistory_button" type="button">
+        Upload all history
+      </button>
+      <button id="uploadIncrementalHistory_button" type="button">
+        Upload since last successful upload
+      </button>
+    </div>
+
+    <dl class="upload-status">
+      <dt>Last successful upload</dt>
+      <dd id="lastSuccessfulUploadTime_value">Never</dd>
+    </dl>
+
+    <script src="shared-config.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

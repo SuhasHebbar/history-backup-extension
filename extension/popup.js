@@ -1,0 +1,281 @@
+// Copyright 2023 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+const {
+  STORAGE_KEY,
+  generateDeviceName,
+  ensureDeviceName
+} = HistoryUploadConfig;
+const UPLOAD_MODE_ALL = 'all';
+const UPLOAD_MODE_INCREMENTAL = 'incremental';
+
+function getStatusElement() {
+  return document.getElementById('uploadSettings_status');
+}
+
+function setSettingsStatus(message, type) {
+  const statusElement = getStatusElement();
+  statusElement.textContent = message;
+  statusElement.className = type || '';
+}
+
+function getLastSuccessfulUploadTimeElement() {
+  return document.getElementById('lastSuccessfulUploadTime_value');
+}
+
+function getManualUploadButtons() {
+  return [
+    document.getElementById('uploadAllHistory_button'),
+    document.getElementById('uploadIncrementalHistory_button')
+  ];
+}
+
+function setManualUploadButtonsDisabled(disabled) {
+  getManualUploadButtons().forEach((button) => {
+    button.disabled = disabled;
+  });
+}
+
+function formatLastSuccessfulUploadTime(lastSuccessfulUploadTime) {
+  if (!lastSuccessfulUploadTime) {
+    return 'Never';
+  }
+
+  const date = new Date(lastSuccessfulUploadTime);
+  if (Number.isNaN(date.getTime())) {
+    return 'Never';
+  }
+
+  return date.toLocaleString();
+}
+
+function renderLastSuccessfulUploadTime(state) {
+  const element = getLastSuccessfulUploadTimeElement();
+  element.textContent = formatLastSuccessfulUploadTime(
+    state && state.lastSuccessfulUploadTime
+  );
+}
+
+function normalizePermissionOrigin(uploadUrl) {
+  const url = new URL(uploadUrl);
+  return `${url.protocol}//${url.hostname}/*`;
+}
+
+function requestPermission(origin) {
+  return new Promise((resolve) => {
+    chrome.permissions.request({ origins: [origin] }, (granted) => {
+      if (chrome.runtime.lastError) {
+        resolve(false);
+        return;
+      }
+
+      resolve(granted);
+    });
+  });
+}
+
+function validateUploadUrl(uploadUrl) {
+  if (!uploadUrl) {
+    throw new Error('Upload URL is required.');
+  }
+
+  let url;
+  try {
+    url = new URL(uploadUrl);
+  } catch (error) {
+    throw new Error('Upload URL must be a valid URL.');
+  }
+
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error('Upload URL must start with http:// or https://.');
+  }
+
+  return url.href;
+}
+
+function validateUploadPeriod(uploadPeriodMinutes) {
+  if (!uploadPeriodMinutes) {
+    return null;
+  }
+
+  const value = Number(uploadPeriodMinutes);
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error('Upload period must be a positive number.');
+  }
+
+  return value;
+}
+
+async function loadUploadSettings() {
+  await ensureDeviceName();
+
+  const data = await chrome.storage.local.get(STORAGE_KEY);
+  const state = data[STORAGE_KEY] || {};
+
+  const uploadUrlInput = document.getElementById('uploadUrl_input');
+  const uploadPeriodInput = document.getElementById(
+    'uploadPeriodMinutes_input'
+  );
+  const deviceNameInput = document.getElementById('deviceName_input');
+
+  uploadUrlInput.value = state.uploadUrl || '';
+  uploadPeriodInput.value =
+    state.uploadPeriodMinutes &&
+    state.uploadPeriodMinutes !== DEFAULT_UPLOAD_CONFIG.uploadPeriodMinutes
+      ? String(state.uploadPeriodMinutes)
+      : '';
+  deviceNameInput.value = state.deviceName || '';
+
+  renderLastSuccessfulUploadTime(state);
+}
+
+async function saveUploadSettings(event) {
+  event.preventDefault();
+  setSettingsStatus('', '');
+
+  const uploadUrlInput = document.getElementById('uploadUrl_input');
+  const uploadPeriodInput = document.getElementById(
+    'uploadPeriodMinutes_input'
+  );
+  const deviceNameInput = document.getElementById('deviceName_input');
+
+  try {
+    const uploadUrl = validateUploadUrl(uploadUrlInput.value.trim());
+    const uploadPeriodMinutes = validateUploadPeriod(
+      uploadPeriodInput.value.trim()
+    );
+    const deviceName = deviceNameInput.value.trim() || generateDeviceName();
+
+    const origin = normalizePermissionOrigin(uploadUrl);
+    const granted = await requestPermission(origin);
+
+    if (!granted) {
+      throw new Error('Permission is required to upload to that URL.');
+    }
+
+    const data = await chrome.storage.local.get(STORAGE_KEY);
+    const nextState = {
+      ...(data[STORAGE_KEY] || {})
+    };
+
+    nextState.uploadUrl = uploadUrl;
+
+    if (uploadPeriodMinutes) {
+      nextState.uploadPeriodMinutes = uploadPeriodMinutes;
+    } else {
+      delete nextState.uploadPeriodMinutes;
+    }
+
+    nextState.deviceName = deviceName;
+
+    await chrome.storage.local.set({
+      [STORAGE_KEY]: nextState
+    });
+
+    deviceNameInput.value = deviceName;
+    setSettingsStatus('Saved.', 'success');
+  } catch (error) {
+    setSettingsStatus(error.message || String(error), 'error');
+  }
+}
+
+function sendUploadMessage(mode) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({ type: 'uploadHistory', mode }, (response) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+
+      if (!response) {
+        reject(new Error('No response from background upload worker.'));
+        return;
+      }
+
+      if (!response.ok) {
+        reject(new Error(response.error || 'Upload failed.'));
+        return;
+      }
+
+      resolve(response);
+    });
+  });
+}
+
+async function runManualUpload(mode) {
+  setSettingsStatus('Uploading history...', '');
+  setManualUploadButtonsDisabled(true);
+
+  try {
+    const response = await sendUploadMessage(mode);
+    setSettingsStatus(
+      `Uploaded ${response.uploadedCount} history item${
+        response.uploadedCount === 1 ? '' : 's'
+      }.`,
+      'success'
+    );
+  } catch (error) {
+    setSettingsStatus(error.message || String(error), 'error');
+  } finally {
+    setManualUploadButtonsDisabled(false);
+  }
+}
+
+function initializeManualUploadButtons() {
+  const uploadAllButton = document.getElementById('uploadAllHistory_button');
+  const uploadIncrementalButton = document.getElementById(
+    'uploadIncrementalHistory_button'
+  );
+
+  uploadAllButton.addEventListener('click', () => {
+    runManualUpload(UPLOAD_MODE_ALL);
+  });
+
+  uploadIncrementalButton.addEventListener('click', () => {
+    runManualUpload(UPLOAD_MODE_INCREMENTAL);
+  });
+}
+
+function initializeUploadSettings() {
+  const form = document.getElementById('uploadSettings_form');
+  form.addEventListener('submit', saveUploadSettings);
+  initializeManualUploadButtons();
+
+  loadUploadSettings().catch((error) => {
+    setSettingsStatus(error.message || String(error), 'error');
+  });
+
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== 'local' || !changes[STORAGE_KEY]) {
+      return;
+    }
+
+    const nextState = changes[STORAGE_KEY].newValue || {};
+    const previousState = changes[STORAGE_KEY].oldValue || {};
+    const deviceNameInput = document.getElementById('deviceName_input');
+
+    renderLastSuccessfulUploadTime(nextState);
+    if (
+      deviceNameInput &&
+      nextState.deviceName !== previousState.deviceName &&
+      document.activeElement !== deviceNameInput
+    ) {
+      deviceNameInput.value = nextState.deviceName || '';
+    }
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  initializeUploadSettings();
+});
