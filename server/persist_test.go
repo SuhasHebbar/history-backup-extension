@@ -165,8 +165,8 @@ func TestPersistItems_SkipsEmptyURL(t *testing.T) {
 		UploadedAt: 1000,
 		DeviceName: "dev",
 		Items: []HistoryItem{
-			{ID: "1", URL: ""},                        // should be skipped
-			{ID: "2", URL: "https://example.com"},     // should be inserted
+			{ID: "1", URL: ""},                    // should be skipped
+			{ID: "2", URL: "https://example.com"}, // should be inserted
 		},
 	}
 	if err := persistItems(db, payload); err != nil {

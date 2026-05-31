@@ -105,6 +105,8 @@ func openDB(path string) (*sql.DB, error) {
 	if strings.Contains(path, "?") {
 		sep = "&"
 	}
+
+	// txlock sets the transaction type on the connection to BEGIN IMMEDIATE.
 	db, err := sql.Open("sqlite3", path+sep+"_txlock=immediate")
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
