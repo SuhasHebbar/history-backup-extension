@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -100,7 +101,11 @@ var expectedColumns = map[string]string{
 // openDB opens (or creates) the SQLite database at path, applies initialization
 // pragmas, and ensures the schema exists and is valid.
 func openDB(path string) (*sql.DB, error) {
-	db, err := sql.Open("sqlite3", path)
+	sep := "?"
+	if strings.Contains(path, "?") {
+		sep = "&"
+	}
+	db, err := sql.Open("sqlite3", path+sep+"_txlock=immediate")
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
@@ -245,36 +250,13 @@ func handler(db *sql.DB) http.HandlerFunc {
 // persistItems upserts all history items from the payload in a single
 // BEGIN IMMEDIATE transaction.
 func persistItems(db *sql.DB, payload *UploadPayload) error {
-	tx, err := db.Begin()
+	tx, err := db.Begin() // issues BEGIN IMMEDIATE via _txlock=immediate DSN param
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
 	defer tx.Rollback() //nolint:errcheck
 
-	// Upgrade to an IMMEDIATE lock to avoid writer contention.
-	if _, err := tx.Exec("SAVEPOINT _; ROLLBACK TO _; RELEASE _;"); err != nil {
-		// Fallback: just proceed; the BEGIN IMMEDIATE hint is a best-effort.
-	}
-	// Actually request IMMEDIATE explicitly by reopening via raw exec.
-	// db.Begin() uses BEGIN DEFERRED by default; to use BEGIN IMMEDIATE we
-	// must exec it directly via a raw connection. We accomplish this by
-	// rolling back the deferred tx and using Exec on the db directly.
-	tx.Rollback() //nolint:errcheck
-
-	// Use BEGIN IMMEDIATE directly.
-	if _, err := db.Exec("BEGIN IMMEDIATE"); err != nil {
-		return fmt.Errorf("begin immediate: %w", err)
-	}
-
-	// Wrap everything in a cleanup that commits or rolls back.
-	committed := false
-	defer func() {
-		if !committed {
-			db.Exec("ROLLBACK") //nolint:errcheck
-		}
-	}()
-
-	stmt, err := db.Prepare(upsertSQL)
+	stmt, err := tx.Prepare(upsertSQL)
 	if err != nil {
 		return fmt.Errorf("prepare upsert: %w", err)
 	}
@@ -286,7 +268,7 @@ func persistItems(db *sql.DB, payload *UploadPayload) error {
 			skipped++
 			continue
 		}
-		_, err := stmt.Exec(
+		if _, err := stmt.Exec(
 			payload.DeviceName,
 			item.URL,
 			nullableString(item.Title),
@@ -294,21 +276,15 @@ func persistItems(db *sql.DB, payload *UploadPayload) error {
 			nullableInt(item.VisitCount),
 			nullableInt(item.TypedCount),
 			payload.UploadedAt,
-		)
-		if err != nil {
+		); err != nil {
 			return fmt.Errorf("upsert item url=%q: %w", item.URL, err)
 		}
 	}
 
-	if _, err := db.Exec("COMMIT"); err != nil {
-		return fmt.Errorf("commit: %w", err)
-	}
-	committed = true
-
 	if skipped > 0 {
 		log.Printf("Skipped %d item(s) with missing URL", skipped)
 	}
-	return nil
+	return tx.Commit()
 }
 
 // ---------------------------------------------------------------------------
