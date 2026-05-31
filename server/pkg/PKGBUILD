@@ -1,19 +1,19 @@
 # Maintainer: Suhas Hebbar <shebbar832@gmail.com>
 pkgname=history-server
-pkgver=r6.a63c6b7
+pkgver=r34.a375e5d
 pkgrel=1
 pkgdesc="HTTP server that receives and persists browser history uploads from a Chrome extension"
 arch=('x86_64')
-url="https://github.com/suhas/history-server"
+url="https://github.com/SuhasHebbar/history-backup-extension"
 license=('MIT')
 depends=('glibc')
 makedepends=('go' 'gcc' 'git')
 backup=('etc/history-server/config.json')
-source=("$pkgname::git+file://${startdir}/..")
+source=("$pkgname::git+file://${startdir}/../..")
 sha256sums=('SKIP')
 
 pkgver() {
-  cd "$pkgname"
+  cd "$pkgname"/server
   if git describe --long --tags &>/dev/null; then
     git describe --long --tags | sed 's/^v//;s/-\([0-9]*\)-g/+r\1./;s/-/./g'
   else
@@ -22,14 +22,14 @@ pkgver() {
 }
 
 build() {
-  cd "$pkgname"
+  cd "$pkgname"/server
   export CGO_ENABLED=1
   export GOFLAGS="-buildmode=pie"
   go build -trimpath -o history-server .
 }
 
 package() {
-  cd "$pkgname"
+  cd "$pkgname"/server
 
   # Binary
   install -Dm755 history-server "$pkgdir/usr/bin/history-server"
