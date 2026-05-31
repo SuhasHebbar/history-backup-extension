@@ -2,13 +2,17 @@
 
 ## Project Overview
 - This repository is a small Chrome Manifest V3 extension.
-- The extension uses the `chrome.history` API to show recently typed URLs in a browser action popup.
+- The extension uses the `chrome.history` API to upload browser history on a configurable schedule.
+- The default upload target is `http://placeholder:9001/`, and the default upload period is 60 minutes.
 - Core files:
   - `manifest.json` defines extension metadata, permissions, background service worker, and popup.
-  - `popup.html` contains the popup shell and inline CSS.
-  - `popup.js` queries browser history and renders popup links.
-  - `service-worker.js` contains the MV3 background service worker.
+  - `popup.html` contains the upload settings UI and inline CSS.
+  - `popup.js` manages upload settings, optional host permission requests, and manual uploads.
+  - `service-worker.js` schedules and performs incremental or all-history uploads.
+  - `shared-config.js` contains default upload settings, storage key constants, and device name helpers.
+  - `upload-payload-spec.md` documents the JSON upload payload.
   - `chrome-history-api-docs.md` is local reference material for the Chrome History API.
+  - `chrome-storage-api-docs.md` is local reference material for the Chrome Storage API.
 
 ## Development Notes
 - There is no package manager, build step, or test runner configured.
@@ -17,6 +21,9 @@
 - Preserve Manifest V3 compatibility.
 - Use Chrome extension APIs only in extension contexts where they are available.
 - Be careful with the `history` permission. Avoid adding broader permissions unless required for the requested behavior.
+- Be careful with host permissions. The extension has default host access for `http://placeholder:9001/*` and requests optional `http://*/*` or `https://*/*` host access only when saving a custom upload URL.
+- Keep upload configuration in `chrome.storage.local` under the shared `historyUpload` key.
+- When changing upload cadence, update `shared-config.js` and any user-facing docs or placeholders that mention the default period.
 
 ## Style Guidelines
 - Follow the existing simple, browser-native style.
@@ -32,8 +39,12 @@
   2. Enable Developer mode.
   3. Load this repository as an unpacked extension.
   4. Pin the extension and open the popup.
-  5. Verify that recently typed URLs appear and links open in a new tab.
+  5. Verify that upload URL, upload period, and device name settings load and save.
+  6. Verify that the default upload period is 60 minutes when no custom period is saved.
+  7. Run a server at the configured upload URL and verify scheduled or manual upload requests.
+  8. Verify that manual uploads can send all history or only history since the last successful upload.
 
 ## Documentation
 - Update `README.md` when user-facing behavior or setup steps change.
-- Use `chrome-history-api-docs.md` for local API context before looking elsewhere.
+- Update `upload-payload-spec.md` when the upload request body changes.
+- Use `chrome-history-api-docs.md` and `chrome-storage-api-docs.md` for local API context before looking elsewhere.
