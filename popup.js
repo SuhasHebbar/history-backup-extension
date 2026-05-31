@@ -13,7 +13,6 @@
 // limitations under the License.
 
 const {
-  DEFAULT_UPLOAD_CONFIG,
   STORAGE_KEY,
   generateDeviceName,
   ensureDeviceName
@@ -88,7 +87,7 @@ function requestPermission(origin) {
 
 function validateUploadUrl(uploadUrl) {
   if (!uploadUrl) {
-    return null;
+    throw new Error('Upload URL is required.');
   }
 
   let url;
@@ -130,10 +129,7 @@ async function loadUploadSettings() {
   );
   const deviceNameInput = document.getElementById('deviceName_input');
 
-  uploadUrlInput.value =
-    state.uploadUrl && state.uploadUrl !== DEFAULT_UPLOAD_CONFIG.uploadUrl
-      ? state.uploadUrl
-      : '';
+  uploadUrlInput.value = state.uploadUrl || '';
   uploadPeriodInput.value =
     state.uploadPeriodMinutes &&
     state.uploadPeriodMinutes !== DEFAULT_UPLOAD_CONFIG.uploadPeriodMinutes
@@ -161,13 +157,11 @@ async function saveUploadSettings(event) {
     );
     const deviceName = deviceNameInput.value.trim() || generateDeviceName();
 
-    if (uploadUrl) {
-      const origin = normalizePermissionOrigin(uploadUrl);
-      const granted = await requestPermission(origin);
+    const origin = normalizePermissionOrigin(uploadUrl);
+    const granted = await requestPermission(origin);
 
-      if (!granted) {
-        throw new Error('Permission is required to upload to that URL.');
-      }
+    if (!granted) {
+      throw new Error('Permission is required to upload to that URL.');
     }
 
     const data = await chrome.storage.local.get(STORAGE_KEY);
@@ -175,11 +169,7 @@ async function saveUploadSettings(event) {
       ...(data[STORAGE_KEY] || {})
     };
 
-    if (uploadUrl) {
-      nextState.uploadUrl = uploadUrl;
-    } else {
-      delete nextState.uploadUrl;
-    }
+    nextState.uploadUrl = uploadUrl;
 
     if (uploadPeriodMinutes) {
       nextState.uploadPeriodMinutes = uploadPeriodMinutes;

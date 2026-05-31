@@ -78,6 +78,12 @@ async function uploadHistory(options = {}) {
   try {
     const deviceName = await ensureDeviceName();
     const state = await getUploadState();
+
+    if (!state.uploadUrl) {
+      await saveUploadState({ lastError: 'No upload URL configured.' });
+      return;
+    }
+
     const rangeStartTime = getRangeStartTime(state, mode);
 
     await saveUploadState({
