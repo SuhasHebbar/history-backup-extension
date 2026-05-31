@@ -3,7 +3,7 @@
 ## Project Overview
 - This repository is a small Chrome Manifest V3 extension.
 - The extension uses the `chrome.history` API to upload browser history on a configurable schedule.
-- The default upload target is `http://placeholder:9001/`, and the default upload period is 60 minutes.
+- The upload target is configurable, and the default upload period is 60 minutes.
 - Core files:
   - `manifest.json` defines extension metadata, permissions, background service worker, and popup.
   - `popup.html` contains the upload settings UI and inline CSS.
@@ -21,7 +21,7 @@
 - Preserve Manifest V3 compatibility.
 - Use Chrome extension APIs only in extension contexts where they are available.
 - Be careful with the `history` permission. Avoid adding broader permissions unless required for the requested behavior.
-- Be careful with host permissions. The extension has default host access for `http://placeholder:9001/*` and requests optional `http://*/*` or `https://*/*` host access only when saving a custom upload URL.
+- Be careful with host permissions. The user must set an upload URL to use the extension, and saving that URL requests the required `http://*/*` or `https://*/*` host access.
 - Keep upload configuration in `chrome.storage.local` under the shared `historyUpload` key.
 - When changing upload cadence, update `shared-config.js` and any user-facing docs or placeholders that mention the default period.
 
