@@ -55,4 +55,4 @@ This policy may be updated if the extension's functionality or data practices ch
 
 ## Contact
 
-For privacy questions about History Backupper, contact the extension author through the contact information provided in the Chrome Web Store listing or project repository.
+For privacy questions about History Backupper, open an issue on the extension github repository.
