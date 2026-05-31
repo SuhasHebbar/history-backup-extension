@@ -1,0 +1,2 @@
+d /var/lib/history-server 0750 history-server history-server -
+d /etc/history-server     0755 root           root           -

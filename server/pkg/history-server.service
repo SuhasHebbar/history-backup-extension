@@ -1,0 +1,15 @@
+[Unit]
+Description=History Server
+Documentation=https://github.com/suhas/history-server
+After=network.target
+
+[Service]
+Type=simple
+User=history-server
+Group=history-server
+ExecStart=/usr/bin/history-server --config /etc/history-server/config.json
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
