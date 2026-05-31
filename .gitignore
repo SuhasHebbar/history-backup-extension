@@ -1,5 +1,6 @@
 # Compiled binaries and build output
 history-server
+history-server-*
 *.exe
 *.exe~
 *.dll
