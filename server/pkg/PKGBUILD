@@ -9,11 +9,13 @@ license=('MIT')
 depends=('glibc')
 makedepends=('go' 'gcc' 'git')
 backup=('etc/history-server/config.json')
-source=("$pkgname::git+file://${startdir}/../..")
+# We expect the PKGBUILD to be placed at the REPO_ROOT/build, 
+# hence to clone the repo into the build environment we need the path startdir/..
+source=("$pkgname::git+file://${startdir}/..")
 sha256sums=('SKIP')
 
 pkgver() {
-  cd "$pkgname"/server
+  cd "$pkgname"
   if git describe --long --tags &>/dev/null; then
     git describe --long --tags | sed 's/^v//;s/-\([0-9]*\)-g/+r\1./;s/-/./g'
   else
@@ -23,6 +25,7 @@ pkgver() {
 
 build() {
   cd "$pkgname"/server
+
   export CGO_ENABLED=1
   export GOFLAGS="-buildmode=pie"
   go build -trimpath -o history-server .
