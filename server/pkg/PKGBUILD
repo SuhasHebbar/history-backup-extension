@@ -48,12 +48,5 @@ package() {
   install -Dm644 pkg/history-server.tmpfiles "$pkgdir/usr/lib/tmpfiles.d/history-server.conf"
 
   # Default config — mode 644 (no secrets in default config; admin can tighten later)
-  install -Dm644 /dev/null "$pkgdir/etc/history-server/config.json"
-  cat > "$pkgdir/etc/history-server/config.json" <<'EOF'
-{
-  "addr": "0.0.0.0:9001",
-  "working-directory": "/var/lib/history-server",
-  "allowed-origins": ["chrome-extension://mnfpggahldoheaiddleppbafdgjeondn"]
-}
-EOF
+  install -Dm644 pkg/config.json "$pkgdir/etc/history-server/config.json"
 }
