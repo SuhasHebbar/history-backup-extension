@@ -73,7 +73,7 @@ func TestLoadConfig_InvalidJSON(t *testing.T) {
 
 func TestResolveSettings_NoArgsNoConfig(t *testing.T) {
 	// Mirrors "Test 1: no args" — both CLI and config are empty.
-	_, _, err := resolveSettings("", "", Config{})
+	_, _, _, err := resolveSettings("", "", "", Config{})
 	if err == nil {
 		t.Fatal("expected error when working-directory is missing, got nil")
 	}
@@ -83,7 +83,7 @@ func TestResolveSettings_ConfigFileOnly(t *testing.T) {
 	// Mirrors "Test 2: --config only" — server should use config file values.
 	cfg := Config{Addr: ":19191", WorkDir: "/tmp/hs-test-workdir"}
 
-	addr, workDir, err := resolveSettings("", "", cfg)
+	addr, workDir, _, err := resolveSettings("", "", "", cfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -99,7 +99,7 @@ func TestResolveSettings_CLIAddrOverridesConfig(t *testing.T) {
 	// Mirrors "Test 3: --config + --addr override" — CLI addr wins.
 	cfg := Config{Addr: ":19191", WorkDir: "/tmp/hs-test-workdir"}
 
-	addr, workDir, err := resolveSettings(":19292", "", cfg)
+	addr, workDir, _, err := resolveSettings(":19292", "", "", cfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -115,7 +115,7 @@ func TestResolveSettings_CLIWorkDirOverridesConfig(t *testing.T) {
 	// Mirrors "Test 4: --config + --working-directory override" — CLI workDir wins.
 	cfg := Config{Addr: ":19191", WorkDir: "/tmp/hs-test-workdir"}
 
-	addr, workDir, err := resolveSettings("", "/tmp/hs-alt-workdir", cfg)
+	addr, workDir, _, err := resolveSettings("", "/tmp/hs-alt-workdir", "", cfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -131,7 +131,7 @@ func TestResolveSettings_DefaultAddr(t *testing.T) {
 	// When neither CLI nor config specifies addr, built-in default ":8080" is used.
 	cfg := Config{WorkDir: "/tmp/hs"}
 
-	addr, _, err := resolveSettings("", "", cfg)
+	addr, _, _, err := resolveSettings("", "", "", cfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -144,7 +144,7 @@ func TestResolveSettings_CLIAddrAndWorkDirBothOverride(t *testing.T) {
 	// Both CLI flags set — config file values should be completely ignored.
 	cfg := Config{Addr: ":11111", WorkDir: "/tmp/from-config"}
 
-	addr, workDir, err := resolveSettings(":22222", "/tmp/from-cli", cfg)
+	addr, workDir, _, err := resolveSettings(":22222", "/tmp/from-cli", "", cfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -153,6 +153,42 @@ func TestResolveSettings_CLIAddrAndWorkDirBothOverride(t *testing.T) {
 	}
 	if workDir != "/tmp/from-cli" {
 		t.Errorf("workDir: want /tmp/from-cli, got %q", workDir)
+	}
+}
+
+func TestResolveSettings_CLIAllowedOriginsOverridesConfig(t *testing.T) {
+	cfg := Config{WorkDir: "/tmp/hs", AllowedOrigins: []string{"https://config-origin.example"}}
+
+	_, _, origins, err := resolveSettings("", "", "https://cli-a.example,https://cli-b.example", cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(origins) != 2 || origins[0] != "https://cli-a.example" || origins[1] != "https://cli-b.example" {
+		t.Errorf("allowedOrigins: want [https://cli-a.example https://cli-b.example], got %v", origins)
+	}
+}
+
+func TestResolveSettings_ConfigAllowedOriginsUsedWhenNoCLI(t *testing.T) {
+	cfg := Config{WorkDir: "/tmp/hs", AllowedOrigins: []string{"chrome-extension://abc123"}}
+
+	_, _, origins, err := resolveSettings("", "", "", cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(origins) != 1 || origins[0] != "chrome-extension://abc123" {
+		t.Errorf("allowedOrigins: want [chrome-extension://abc123], got %v", origins)
+	}
+}
+
+func TestResolveSettings_AllowedOriginsEmptyWhenNeitherSet(t *testing.T) {
+	cfg := Config{WorkDir: "/tmp/hs"}
+
+	_, _, origins, err := resolveSettings("", "", "", cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(origins) != 0 {
+		t.Errorf("allowedOrigins: want empty, got %v", origins)
 	}
 }
 

@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rs/cors"
+
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -384,8 +386,9 @@ func nullableInt(i *int) interface{} {
 
 // Config holds values that can be supplied via a JSON config file.
 type Config struct {
-	Addr    string `json:"addr"`
-	WorkDir string `json:"working-directory"`
+	Addr           string   `json:"addr"`
+	WorkDir        string   `json:"working-directory"`
+	AllowedOrigins []string `json:"allowed-origins"`
 }
 
 // loadConfig reads and parses a JSON config file at path.
@@ -410,7 +413,7 @@ func loadConfig(path string) (Config, error) {
 // resolveSettings merges CLI flag values with config-file values.
 // CLI values take precedence; the built-in default for addr is ":8080".
 // It returns an error when workDir cannot be determined.
-func resolveSettings(cliAddr, cliWorkDir string, cfg Config) (addr, workDir string, err error) {
+func resolveSettings(cliAddr, cliWorkDir, cliAllowedOrigins string, cfg Config) (addr, workDir string, allowedOrigins []string, err error) {
 	addr = cliAddr
 	if addr == "" {
 		addr = cfg.Addr
@@ -424,9 +427,16 @@ func resolveSettings(cliAddr, cliWorkDir string, cfg Config) (addr, workDir stri
 		workDir = cfg.WorkDir
 	}
 	if workDir == "" {
-		return "", "", fmt.Errorf("--working-directory is required (via flag or config file)")
+		return "", "", nil, fmt.Errorf("--working-directory is required (via flag or config file)")
 	}
-	return addr, workDir, nil
+
+	if cliAllowedOrigins != "" {
+		allowedOrigins = strings.Split(cliAllowedOrigins, ",")
+	} else {
+		allowedOrigins = cfg.AllowedOrigins
+	}
+
+	return addr, workDir, allowedOrigins, nil
 }
 
 // Entry point
@@ -436,6 +446,7 @@ func main() {
 	configPath := flag.String("config", "", "path to JSON config file (optional)")
 	addr := flag.String("addr", "", "listen address (host:port) — overrides config file")
 	workDir := flag.String("working-directory", "", "path to working directory for the SQLite database — overrides config file")
+	allowedOrigins := flag.String("allowed-origins", "", "comma-separated list of allowed CORS origins — overrides config file")
 	flag.Parse()
 
 	cfg, err := loadConfig(*configPath)
@@ -443,7 +454,7 @@ func main() {
 		log.Fatalf("load config: %v", err)
 	}
 
-	effectiveAddr, effectiveWorkDir, err := resolveSettings(*addr, *workDir, cfg)
+	effectiveAddr, effectiveWorkDir, effectiveAllowedOrigins, err := resolveSettings(*addr, *workDir, *allowedOrigins, cfg)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		flag.Usage()
@@ -463,11 +474,17 @@ func main() {
 	}
 	defer db.Close()
 
-	http.HandleFunc("/status", statusHandler())
-	http.HandleFunc("/", handler(db))
+	mux := http.NewServeMux()
+	mux.HandleFunc("/status", statusHandler())
+	mux.HandleFunc("/", handler(db))
+
+	c := cors.New(cors.Options{
+		AllowedOrigins: effectiveAllowedOrigins,
+		AllowedMethods: []string{http.MethodGet, http.MethodPost},
+	})
 
 	log.Printf("Listening on %s", effectiveAddr)
-	if err := http.ListenAndServe(effectiveAddr, nil); err != nil {
+	if err := http.ListenAndServe(effectiveAddr, c.Handler(mux)); err != nil {
 		log.Fatalf("server error: %v", err)
 	}
 }

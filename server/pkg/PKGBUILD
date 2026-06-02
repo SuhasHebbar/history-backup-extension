@@ -52,7 +52,8 @@ package() {
   cat > "$pkgdir/etc/history-server/config.json" <<'EOF'
 {
   "addr": "0.0.0.0:9001",
-  "working-directory": "/var/lib/history-server"
+  "working-directory": "/var/lib/history-server",
+  "allowed-origins": ["chrome-extension://mnfpggahldoheaiddleppbafdgjeondn"]
 }
 EOF
 }
