@@ -33,7 +33,11 @@ This is a single-file Go HTTP server (`main.go`) in `package main`. It receives 
 - `HistoryItem` — mirrors Chrome's `HistoryItem` API; all fields except `id` are optional (pointer types for nullable columns)
 - `Config` — JSON config file structure (`addr`, `working-directory`)
 
-**Database:** SQLite at `<working-directory>/history.db`. Primary key is `(device_name, url)` — repeated uploads upsert rather than duplicate. `openDB()` applies WAL-mode pragmas and calls `ensureSchema()`, which creates the table on first run or validates column names/types against `expectedColumns` on subsequent runs.
+**Database:** SQLite at `<working-directory>/history.db`. Two tables:
+- `history_items` — primary key `(device_name, url)`; repeated uploads upsert rather than duplicate.
+- `upload_events` — one row per upload: `timestamp`, `device_name`, `num_items` (URL-filtered count), `range_start_time`, `range_end_time`.
+
+Both rows are written in the same `BEGIN IMMEDIATE` transaction inside `persistItems()`. `openDB()` applies WAL-mode pragmas and calls `ensureSchema()`, which delegates to `ensureTable()` for each table; on first run the table is created, on subsequent runs `validateTableSchema()` checks column names and declared types against the corresponding `expected*Columns` map.
 
 **Configuration precedence:** CLI flags > config file > built-in defaults. `--working-directory` is required (no built-in default). Default listen address is `:8080`.
 
