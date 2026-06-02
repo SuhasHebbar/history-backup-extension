@@ -133,18 +133,18 @@ func TestEnsureSchema_WrongColumnType(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// validateSchema tests
+// validateTableSchema tests
 // ---------------------------------------------------------------------------
 
-func TestValidateSchema_Pass(t *testing.T) {
+func TestValidateTableSchema_Pass(t *testing.T) {
 	db := newTestDB(t)
 
-	if err := validateSchema(db); err != nil {
-		t.Fatalf("validateSchema: unexpected error: %v", err)
+	if err := validateTableSchema(db, "history_items", expectedColumns); err != nil {
+		t.Fatalf("validateTableSchema: unexpected error: %v", err)
 	}
 }
 
-func TestValidateSchema_MissingColumn(t *testing.T) {
+func TestValidateTableSchema_MissingColumn(t *testing.T) {
 	db, err := sql.Open("sqlite3", ":memory:")
 	if err != nil {
 		t.Fatalf("sql.Open: %v", err)
@@ -167,7 +167,7 @@ func TestValidateSchema_MissingColumn(t *testing.T) {
 		t.Fatalf("create table: %v", err)
 	}
 
-	err = validateSchema(db)
+	err = validateTableSchema(db, "history_items", expectedColumns)
 	if err == nil {
 		t.Fatal("expected error for missing column visit_count, got nil")
 	}
@@ -176,7 +176,7 @@ func TestValidateSchema_MissingColumn(t *testing.T) {
 	}
 }
 
-func TestValidateSchema_WrongType(t *testing.T) {
+func TestValidateTableSchema_WrongType(t *testing.T) {
 	db, err := sql.Open("sqlite3", ":memory:")
 	if err != nil {
 		t.Fatalf("sql.Open: %v", err)
@@ -200,11 +200,44 @@ func TestValidateSchema_WrongType(t *testing.T) {
 		t.Fatalf("create table: %v", err)
 	}
 
-	err = validateSchema(db)
+	err = validateTableSchema(db, "history_items", expectedColumns)
 	if err == nil {
 		t.Fatal("expected error for wrong column type (title INTEGER vs TEXT), got nil")
 	}
 	if !strings.Contains(err.Error(), "title") {
 		t.Errorf("error should mention column title, got: %v", err)
+	}
+}
+
+func TestValidateTableSchema_ExtraColumn(t *testing.T) {
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatalf("sql.Open: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+
+	_, err = db.Exec(`
+		CREATE TABLE history_items (
+			device_name     TEXT    NOT NULL,
+			url             TEXT    NOT NULL,
+			title           TEXT,
+			last_visit_time INTEGER,
+			visit_count     INTEGER,
+			typed_count     INTEGER,
+			uploaded_at     INTEGER NOT NULL,
+			extra_column    TEXT,
+			PRIMARY KEY (device_name, url)
+		)
+	`)
+	if err != nil {
+		t.Fatalf("create table: %v", err)
+	}
+
+	err = validateTableSchema(db, "history_items", expectedColumns)
+	if err == nil {
+		t.Fatal("expected error for extra column, got nil")
+	}
+	if !strings.Contains(err.Error(), "extra_column") {
+		t.Errorf("error should mention extra column, got: %v", err)
 	}
 }

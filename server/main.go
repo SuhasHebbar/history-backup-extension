@@ -181,13 +181,7 @@ func ensureTable(db *sql.DB, table, createSQL string, expected map[string]string
 	}
 }
 
-// validateSchema checks that history_items has exactly the expected columns
-// with the expected declared types.
-func validateSchema(db *sql.DB) error {
-	return validateTableSchema(db, "history_items", expectedColumns)
-}
-
-// validateTableSchema checks that the named table has at least the expected
+// validateTableSchema checks that the named table has exactly the expected
 // columns with the expected declared types.
 func validateTableSchema(db *sql.DB, table string, expected map[string]string) error {
 	rows, err := db.Query(`PRAGMA table_info(` + table + `)`)
@@ -224,6 +218,12 @@ func validateTableSchema(db *sql.DB, table string, expected map[string]string) e
 		}
 		if gotType != wantType {
 			return fmt.Errorf("schema mismatch: column %q has type %q, want %q", col, gotType, wantType)
+		}
+	}
+
+	for col := range found {
+		if _, ok := expected[col]; !ok {
+			return fmt.Errorf("schema mismatch: unexpected column %q found in %s", col, table)
 		}
 	}
 
