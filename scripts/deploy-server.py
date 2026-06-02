@@ -21,11 +21,23 @@ def latest_server_package(build_dir):
     return max(packages, key=lambda package: (package.stat().st_mtime, package.name))
 
 
+def build_server_package(repo_root):
+    subprocess.run(
+        [str(repo_root / "scripts" / "build-server.sh")],
+        cwd=repo_root,
+        check=True,
+    )
+
+
 def remote_install_command(remote_path):
     quoted_path = shlex.quote(remote_path)
     cleanup_command = f"rm -f -- {quoted_path}"
     install_command = f"sudo pacman -U --noconfirm {quoted_path}"
-    return f"trap {shlex.quote(cleanup_command)} EXIT; {install_command}"
+    restart_command = "sudo systemctl restart history-server"
+    return (
+        f"trap {shlex.quote(cleanup_command)} EXIT; "
+        f"{install_command} && {restart_command}"
+    )
 
 
 def deploy_package(remote_host, package_path):
@@ -49,6 +61,12 @@ def main():
     remote_host = sys.argv[1]
     repo_root = Path(__file__).resolve().parent.parent
     build_dir = repo_root / "build"
+
+    try:
+        build_server_package(repo_root)
+    except subprocess.CalledProcessError as error:
+        return error.returncode
+
     package_path = latest_server_package(build_dir)
 
     if package_path is None:
@@ -56,7 +74,7 @@ def main():
             f"error: no history-server package found in {build_dir}",
             file=sys.stderr,
         )
-        print("hint: run scripts/build-server.sh first", file=sys.stderr)
+        print("hint: scripts/build-server.sh did not produce a package", file=sys.stderr)
         return 1
 
     try:
