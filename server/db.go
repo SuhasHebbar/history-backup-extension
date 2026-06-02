@@ -6,21 +6,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
-
-	_ "github.com/mattn/go-sqlite3"
 )
-
-const initPragmas = `
-PRAGMA journal_mode = WAL;
-PRAGMA synchronous = NORMAL;
-PRAGMA busy_timeout = 5000;
-PRAGMA cache_size = -20000;
-PRAGMA foreign_keys = ON;
-PRAGMA auto_vacuum = INCREMENTAL;
-PRAGMA temp_store = MEMORY;
-PRAGMA mmap_size = 2147483648;
-PRAGMA page_size = 8192;
-`
 
 const createTableSQL = `
 CREATE TABLE history_items (
@@ -93,14 +79,9 @@ func openDB(path string) (*sql.DB, error) {
 	}
 
 	// txlock sets the transaction type on the connection to BEGIN IMMEDIATE.
-	db, err := sql.Open("sqlite3", path+sep+"_txlock=immediate")
+	db, err := sql.Open("sqlite3_pragma", path+sep+"_txlock=immediate")
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
-	}
-
-	if _, err := db.Exec(initPragmas); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("apply pragmas: %w", err)
 	}
 
 	if err := ensureSchema(db); err != nil {
