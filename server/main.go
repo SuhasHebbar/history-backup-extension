@@ -439,6 +439,17 @@ func resolveSettings(cliAddr, cliWorkDir, cliAllowedOrigins string, cfg Config) 
 	return addr, workDir, allowedOrigins, nil
 }
 
+func buildHandler(db *sql.DB, allowedOrigins []string) http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/status", statusHandler())
+	mux.HandleFunc("/", handler(db))
+	c := cors.New(cors.Options{
+		AllowedOrigins: allowedOrigins,
+		AllowedMethods: []string{http.MethodGet, http.MethodPost},
+	})
+	return c.Handler(mux)
+}
+
 // Entry point
 // ---------------------------------------------------------------------------
 
@@ -474,17 +485,8 @@ func main() {
 	}
 	defer db.Close()
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/status", statusHandler())
-	mux.HandleFunc("/", handler(db))
-
-	c := cors.New(cors.Options{
-		AllowedOrigins: effectiveAllowedOrigins,
-		AllowedMethods: []string{http.MethodGet, http.MethodPost},
-	})
-
 	log.Printf("Listening on %s", effectiveAddr)
-	if err := http.ListenAndServe(effectiveAddr, c.Handler(mux)); err != nil {
+	if err := http.ListenAndServe(effectiveAddr, buildHandler(db, effectiveAllowedOrigins)); err != nil {
 		log.Fatalf("server error: %v", err)
 	}
 }
