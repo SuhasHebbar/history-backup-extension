@@ -286,6 +286,19 @@ func handler(db *sql.DB) http.HandlerFunc {
 	}
 }
 
+func statusHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	}
+}
+
 // persistItems upserts all history items from the payload in a single
 // BEGIN IMMEDIATE transaction.
 func persistItems(db *sql.DB, payload *UploadPayload) error {
@@ -450,6 +463,7 @@ func main() {
 	}
 	defer db.Close()
 
+	http.HandleFunc("/status", statusHandler())
 	http.HandleFunc("/", handler(db))
 
 	log.Printf("Listening on %s", effectiveAddr)

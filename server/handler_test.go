@@ -14,6 +14,34 @@ import (
 // ensure sql import is used (newTestDB returns *sql.DB)
 var _ *sql.DB
 
+func TestStatusHandler_OK(t *testing.T) {
+	h := statusHandler()
+	req := httptest.NewRequest(http.MethodGet, "/status", nil)
+	rr := httptest.NewRecorder()
+	h(rr, req)
+
+	if got, want := rr.Code, http.StatusOK; got != want {
+		t.Fatalf("status: got %d, want %d", got, want)
+	}
+	if got, want := rr.Body.String(), "ok"; got != want {
+		t.Errorf("body: got %q, want %q", got, want)
+	}
+	if got, want := rr.Header().Get("Content-Type"), "text/plain; charset=utf-8"; got != want {
+		t.Errorf("content type: got %q, want %q", got, want)
+	}
+}
+
+func TestStatusHandler_MethodNotAllowed(t *testing.T) {
+	h := statusHandler()
+	req := httptest.NewRequest(http.MethodPost, "/status", nil)
+	rr := httptest.NewRecorder()
+	h(rr, req)
+
+	if got, want := rr.Code, http.StatusMethodNotAllowed; got != want {
+		t.Errorf("status: got %d, want %d", got, want)
+	}
+}
+
 func TestHandler_MethodNotAllowed(t *testing.T) {
 	h := handler(newTestDB(t))
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
