@@ -23,7 +23,7 @@ def latest_server_package(build_dir):
 
 def build_server_package(repo_root):
     subprocess.run(
-        [str(repo_root / "scripts" / "build-server.sh")],
+        ["bash", str(repo_root / "scripts" / "build-server.sh")],
         cwd=repo_root,
         check=True,
     )
