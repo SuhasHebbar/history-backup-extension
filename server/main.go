@@ -46,6 +46,17 @@ CREATE TABLE history_items (
 );
 `
 
+const createUploadEventsSQL = `
+CREATE TABLE upload_events (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp        INTEGER NOT NULL,
+    device_name      TEXT    NOT NULL,
+    num_items        INTEGER NOT NULL,
+    range_start_time INTEGER NOT NULL,
+    range_end_time   INTEGER NOT NULL
+);
+`
+
 const upsertSQL = `
 INSERT INTO history_items
     (device_name, url, title, last_visit_time, visit_count, typed_count, uploaded_at)
@@ -56,6 +67,11 @@ ON CONFLICT(device_name, url) DO UPDATE SET
     visit_count     = excluded.visit_count,
     typed_count     = excluded.typed_count,
     uploaded_at     = excluded.uploaded_at;
+`
+
+const insertUploadEventSQL = `
+INSERT INTO upload_events (timestamp, device_name, num_items, range_start_time, range_end_time)
+VALUES (?, ?, ?, ?, ?);
 `
 
 // ---------------------------------------------------------------------------
@@ -98,6 +114,15 @@ var expectedColumns = map[string]string{
 	"uploaded_at":     "INTEGER",
 }
 
+var expectedUploadEventColumns = map[string]string{
+	"id":               "INTEGER",
+	"timestamp":        "INTEGER",
+	"device_name":      "TEXT",
+	"num_items":        "INTEGER",
+	"range_start_time": "INTEGER",
+	"range_end_time":   "INTEGER",
+}
+
 // openDB opens (or creates) the SQLite database at path, applies initialization
 // pragmas, and ensures the schema exists and is valid.
 func openDB(path string) (*sql.DB, error) {
@@ -126,36 +151,48 @@ func openDB(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-// ensureSchema creates the history_items table if it doesn't exist, or
-// validates it if it does.
+// ensureSchema creates required tables if they don't exist, or validates them
+// if they do.
 func ensureSchema(db *sql.DB) error {
+	if err := ensureTable(db, "history_items", createTableSQL, expectedColumns); err != nil {
+		return err
+	}
+	return ensureTable(db, "upload_events", createUploadEventsSQL, expectedUploadEventColumns)
+}
+
+// ensureTable creates the named table if absent, or validates its columns if present.
+func ensureTable(db *sql.DB, table, createSQL string, expected map[string]string) error {
 	var name string
 	err := db.QueryRow(
-		`SELECT name FROM sqlite_master WHERE type='table' AND name='history_items'`,
+		`SELECT name FROM sqlite_master WHERE type='table' AND name=?`, table,
 	).Scan(&name)
 
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
-		// Table does not exist — create it.
-		if _, err := db.Exec(createTableSQL); err != nil {
-			return fmt.Errorf("create history_items table: %w", err)
+		if _, err := db.Exec(createSQL); err != nil {
+			return fmt.Errorf("create %s table: %w", table, err)
 		}
-		log.Println("Created history_items table")
+		log.Printf("Created %s table", table)
 		return nil
 	case err != nil:
-		return fmt.Errorf("check table existence: %w", err)
+		return fmt.Errorf("check %s table existence: %w", table, err)
 	default:
-		// Table exists — validate its schema.
-		return validateSchema(db)
+		return validateTableSchema(db, table, expected)
 	}
 }
 
 // validateSchema checks that history_items has exactly the expected columns
 // with the expected declared types.
 func validateSchema(db *sql.DB) error {
-	rows, err := db.Query(`PRAGMA table_info(history_items)`)
+	return validateTableSchema(db, "history_items", expectedColumns)
+}
+
+// validateTableSchema checks that the named table has at least the expected
+// columns with the expected declared types.
+func validateTableSchema(db *sql.DB, table string, expected map[string]string) error {
+	rows, err := db.Query(`PRAGMA table_info(` + table + `)`)
 	if err != nil {
-		return fmt.Errorf("pragma table_info: %w", err)
+		return fmt.Errorf("pragma table_info(%s): %w", table, err)
 	}
 	defer rows.Close()
 
@@ -180,17 +217,17 @@ func validateSchema(db *sql.DB) error {
 		return fmt.Errorf("iterate table_info: %w", err)
 	}
 
-	for col, wantType := range expectedColumns {
+	for col, wantType := range expected {
 		gotType, ok := found[col]
 		if !ok {
-			return fmt.Errorf("schema mismatch: column %q not found in history_items", col)
+			return fmt.Errorf("schema mismatch: column %q not found in %s", col, table)
 		}
 		if gotType != wantType {
 			return fmt.Errorf("schema mismatch: column %q has type %q, want %q", col, gotType, wantType)
 		}
 	}
 
-	log.Println("Schema validation passed")
+	log.Printf("Schema validation passed for %s", table)
 	return nil
 }
 
@@ -265,6 +302,7 @@ func persistItems(db *sql.DB, payload *UploadPayload) error {
 	defer stmt.Close()
 
 	skipped := 0
+	itemCount := 0
 	for _, item := range payload.Items {
 		if item.URL == "" {
 			skipped++
@@ -281,11 +319,23 @@ func persistItems(db *sql.DB, payload *UploadPayload) error {
 		); err != nil {
 			return fmt.Errorf("upsert item url=%q: %w", item.URL, err)
 		}
+		itemCount++
 	}
 
 	if skipped > 0 {
 		log.Printf("Skipped %d item(s) with missing URL", skipped)
 	}
+
+	if _, err := tx.Exec(insertUploadEventSQL,
+		payload.UploadedAt,
+		payload.DeviceName,
+		itemCount,
+		payload.RangeStartTime,
+		payload.RangeEndTime,
+	); err != nil {
+		return fmt.Errorf("insert upload event: %w", err)
+	}
+
 	return tx.Commit()
 }
 

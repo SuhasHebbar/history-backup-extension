@@ -23,13 +23,15 @@ func TestOpenDB_CreatesDB(t *testing.T) {
 	}
 	defer db.Close()
 
-	var name string
-	err = db.QueryRow(`SELECT name FROM sqlite_master WHERE type='table' AND name='history_items'`).Scan(&name)
-	if err != nil {
-		t.Fatalf("history_items table not found: %v", err)
-	}
-	if name != "history_items" {
-		t.Errorf("expected table name %q, got %q", "history_items", name)
+	for _, table := range []string{"history_items", "upload_events"} {
+		var name string
+		err = db.QueryRow(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`, table).Scan(&name)
+		if err != nil {
+			t.Fatalf("%s table not found: %v", table, err)
+		}
+		if name != table {
+			t.Errorf("expected table name %q, got %q", table, name)
+		}
 	}
 }
 
@@ -55,10 +57,12 @@ func TestEnsureSchema_CreatesTable(t *testing.T) {
 		t.Fatalf("ensureSchema: unexpected error: %v", err)
 	}
 
-	var name string
-	err = db.QueryRow(`SELECT name FROM sqlite_master WHERE type='table' AND name='history_items'`).Scan(&name)
-	if err != nil {
-		t.Fatalf("history_items table not found after ensureSchema: %v", err)
+	for _, table := range []string{"history_items", "upload_events"} {
+		var name string
+		err = db.QueryRow(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`, table).Scan(&name)
+		if err != nil {
+			t.Fatalf("%s table not found after ensureSchema: %v", table, err)
+		}
 	}
 }
 
