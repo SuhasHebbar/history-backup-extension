@@ -439,6 +439,22 @@ func resolveSettings(cliAddr, cliWorkDir, cliAllowedOrigins string, cfg Config) 
 	return addr, workDir, allowedOrigins, nil
 }
 
+func finalConfigJSON(addr, workDir string, allowedOrigins []string) (string, error) {
+	if allowedOrigins == nil {
+		allowedOrigins = []string{}
+	}
+
+	b, err := json.Marshal(Config{
+		Addr:           addr,
+		WorkDir:        workDir,
+		AllowedOrigins: allowedOrigins,
+	})
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
 func buildHandler(db *sql.DB, allowedOrigins []string) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/status", statusHandler())
@@ -471,6 +487,12 @@ func main() {
 		flag.Usage()
 		os.Exit(1)
 	}
+
+	finalConfig, err := finalConfigJSON(effectiveAddr, effectiveWorkDir, effectiveAllowedOrigins)
+	if err != nil {
+		log.Fatalf("marshal final config: %v", err)
+	}
+	log.Printf("Final config: %s", finalConfig)
 
 	if err := os.MkdirAll(effectiveWorkDir, 0755); err != nil {
 		log.Fatalf("create working directory %q: %v", effectiveWorkDir, err)

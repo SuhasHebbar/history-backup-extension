@@ -192,6 +192,18 @@ func TestResolveSettings_AllowedOriginsEmptyWhenNeitherSet(t *testing.T) {
 	}
 }
 
+func TestFinalConfigJSON(t *testing.T) {
+	got, err := finalConfigJSON(":8080", "/tmp/hs", nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	want := `{"addr":":8080","working-directory":"/tmp/hs","allowed-origins":[]}`
+	if got != want {
+		t.Errorf("final config JSON: want %s, got %s", want, got)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
