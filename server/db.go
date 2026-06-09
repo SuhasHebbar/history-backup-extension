@@ -2,14 +2,13 @@ package main
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 	"log"
 	"strings"
 )
 
 const createTableSQL = `
-CREATE TABLE history_items (
+CREATE TABLE IF NOT EXISTS history_items (
     device_name     TEXT    NOT NULL,
     url             TEXT    NOT NULL,
     title           TEXT,
@@ -22,7 +21,7 @@ CREATE TABLE history_items (
 `
 
 const createUploadEventsSQL = `
-CREATE TABLE upload_events (
+CREATE TABLE IF NOT EXISTS upload_events (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
     timestamp        INTEGER NOT NULL,
     device_name      TEXT    NOT NULL,
@@ -152,25 +151,11 @@ func ensureIndex(db *sql.DB, indexName, createSQL string, wantCols []string) err
 	return nil
 }
 
-// ensureTable creates the named table if absent, or validates its columns if present.
 func ensureTable(db *sql.DB, table, createSQL string, expected map[string]string) error {
-	var name string
-	err := db.QueryRow(
-		`SELECT name FROM sqlite_master WHERE type='table' AND name=?`, table,
-	).Scan(&name)
-
-	switch {
-	case errors.Is(err, sql.ErrNoRows):
-		if _, err := db.Exec(createSQL); err != nil {
-			return fmt.Errorf("create %s table: %w", table, err)
-		}
-		log.Printf("Created %s table", table)
-		return nil
-	case err != nil:
-		return fmt.Errorf("check %s table existence: %w", table, err)
-	default:
-		return validateTableSchema(db, table, expected)
+	if _, err := db.Exec(createSQL); err != nil {
+		return fmt.Errorf("create %s table: %w", table, err)
 	}
+	return validateTableSchema(db, table, expected)
 }
 
 // validateTableSchema checks that the named table has exactly the expected
