@@ -91,7 +91,7 @@ func TestEnsureSchema_MissingColumn(t *testing.T) {
 			last_visit_time REAL,
 			visit_count     INTEGER,
 			uploaded_at     INTEGER NOT NULL,
-			PRIMARY KEY (device_name, url)
+			PRIMARY KEY (url, device_name)
 		)
 	`)
 	if err != nil {
@@ -120,7 +120,7 @@ func TestEnsureSchema_WrongColumnType(t *testing.T) {
 			visit_count     INTEGER,
 			typed_count     INTEGER,
 			uploaded_at     INTEGER NOT NULL,
-			PRIMARY KEY (device_name, url)
+			PRIMARY KEY (url, device_name)
 		)
 	`)
 	if err != nil {
@@ -160,7 +160,7 @@ func TestValidateTableSchema_MissingColumn(t *testing.T) {
 			last_visit_time REAL,
 			typed_count     INTEGER,
 			uploaded_at     INTEGER NOT NULL,
-			PRIMARY KEY (device_name, url)
+			PRIMARY KEY (url, device_name)
 		)
 	`)
 	if err != nil {
@@ -193,7 +193,7 @@ func TestValidateTableSchema_WrongType(t *testing.T) {
 			visit_count     INTEGER,
 			typed_count     INTEGER,
 			uploaded_at     INTEGER NOT NULL,
-			PRIMARY KEY (device_name, url)
+			PRIMARY KEY (url, device_name)
 		)
 	`)
 	if err != nil {
@@ -226,7 +226,7 @@ func TestValidateTableSchema_ExtraColumn(t *testing.T) {
 			typed_count     INTEGER,
 			uploaded_at     INTEGER NOT NULL,
 			extra_column    TEXT,
-			PRIMARY KEY (device_name, url)
+			PRIMARY KEY (url, device_name)
 		)
 	`)
 	if err != nil {
