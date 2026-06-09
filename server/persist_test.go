@@ -241,7 +241,7 @@ func TestPersistItems_AllFieldsPopulated(t *testing.T) {
 	}
 
 	var title string
-	var lastVisitTime sql.NullInt64
+	var lastVisitTime sql.NullFloat64
 	var visitCount, typedCount int
 	var uploadedAt int64
 	err := db.QueryRow(
@@ -256,8 +256,8 @@ func TestPersistItems_AllFieldsPopulated(t *testing.T) {
 	}
 	if !lastVisitTime.Valid {
 		t.Error("last_visit_time: want non-NULL")
-	} else if lastVisitTime.Int64 != int64(lvt) {
-		t.Errorf("last_visit_time: want %d, got %d", int64(lvt), lastVisitTime.Int64)
+	} else if lastVisitTime.Float64 != lvt {
+		t.Errorf("last_visit_time: want %f, got %f", lvt, lastVisitTime.Float64)
 	}
 	if visitCount != vc {
 		t.Errorf("visit_count: want %d, got %d", vc, visitCount)
