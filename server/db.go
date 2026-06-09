@@ -17,7 +17,7 @@ CREATE TABLE history_items (
     visit_count     INTEGER,
     typed_count     INTEGER,
     uploaded_at     INTEGER NOT NULL,
-    PRIMARY KEY (device_name, url)
+    PRIMARY KEY (url, device_name)
 );
 `
 
