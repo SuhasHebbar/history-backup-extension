@@ -35,6 +35,26 @@ func TestOpenDB_CreatesDB(t *testing.T) {
 	}
 }
 
+func TestOpenDB_CreatesLastVisitTimeIndex(t *testing.T) {
+	dir := t.TempDir()
+	db, err := openDB(filepath.Join(dir, "test.db"))
+	if err != nil {
+		t.Fatalf("openDB: %v", err)
+	}
+	defer db.Close()
+
+	var name string
+	err = db.QueryRow(
+		`SELECT name FROM sqlite_master WHERE type='index' AND name='idx_history_items_last_visit_time'`,
+	).Scan(&name)
+	if err != nil {
+		t.Fatalf("index not found: %v", err)
+	}
+	if name != "idx_history_items_last_visit_time" {
+		t.Errorf("unexpected index name %q", name)
+	}
+}
+
 func TestOpenDB_InvalidPath(t *testing.T) {
 	_, err := openDB("/nonexistent/dir/db.sqlite")
 	if err == nil {
@@ -129,6 +149,52 @@ func TestEnsureSchema_WrongColumnType(t *testing.T) {
 
 	if err := ensureSchema(db); err == nil {
 		t.Fatal("expected error for wrong column type (url INTEGER vs TEXT), got nil")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ensureIndex tests
+// ---------------------------------------------------------------------------
+
+func TestEnsureIndex_Idempotent(t *testing.T) {
+	db := newTestDB(t)
+	if err := ensureSchema(db); err != nil {
+		t.Fatalf("second ensureSchema call: %v", err)
+	}
+}
+
+func TestEnsureIndex_WrongColumn(t *testing.T) {
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatalf("sql.Open: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+
+	_, err = db.Exec(`CREATE TABLE history_items (
+		device_name TEXT NOT NULL, url TEXT NOT NULL,
+		title TEXT, last_visit_time REAL, visit_count INTEGER,
+		typed_count INTEGER, uploaded_at INTEGER NOT NULL,
+		PRIMARY KEY (url, device_name)
+	)`)
+	if err != nil {
+		t.Fatalf("create table: %v", err)
+	}
+
+	_, err = db.Exec(`CREATE INDEX idx_history_items_last_visit_time ON history_items (visit_count)`)
+	if err != nil {
+		t.Fatalf("create wrong index: %v", err)
+	}
+
+	err = ensureIndex(db,
+		"idx_history_items_last_visit_time",
+		createLastVisitTimeIndexSQL,
+		[]string{"last_visit_time"},
+	)
+	if err == nil {
+		t.Fatal("expected error for wrong index column, got nil")
+	}
+	if !strings.Contains(err.Error(), "last_visit_time") {
+		t.Errorf("error should mention expected column, got: %v", err)
 	}
 }
 

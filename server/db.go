@@ -44,6 +44,11 @@ ON CONFLICT(device_name, url) DO UPDATE SET
     uploaded_at     = excluded.uploaded_at;
 `
 
+const createLastVisitTimeIndexSQL = `
+CREATE INDEX IF NOT EXISTS idx_history_items_last_visit_time
+    ON history_items (last_visit_time);
+`
+
 const insertUploadEventSQL = `
 INSERT INTO upload_events (timestamp, device_name, num_items, range_start_time, range_end_time)
 VALUES (?, ?, ?, ?, ?);
@@ -93,12 +98,58 @@ func openDB(path string) (*sql.DB, error) {
 }
 
 // ensureSchema creates required tables if they don't exist, or validates them
-// if they do.
+// if they do, then ensures indexes are present and correct.
 func ensureSchema(db *sql.DB) error {
 	if err := ensureTable(db, "history_items", createTableSQL, expectedColumns); err != nil {
 		return err
 	}
-	return ensureTable(db, "upload_events", createUploadEventsSQL, expectedUploadEventColumns)
+	if err := ensureTable(db, "upload_events", createUploadEventsSQL, expectedUploadEventColumns); err != nil {
+		return err
+	}
+	return ensureIndex(db,
+		"idx_history_items_last_visit_time",
+		createLastVisitTimeIndexSQL,
+		[]string{"last_visit_time"},
+	)
+}
+
+// ensureIndex creates the named index if absent, then verifies it covers exactly
+// the expected columns in the given order.
+func ensureIndex(db *sql.DB, indexName, createSQL string, wantCols []string) error {
+	if _, err := db.Exec(createSQL); err != nil {
+		return fmt.Errorf("create index %s: %w", indexName, err)
+	}
+
+	rows, err := db.Query(`PRAGMA index_info(` + indexName + `)`)
+	if err != nil {
+		return fmt.Errorf("pragma index_info(%s): %w", indexName, err)
+	}
+	defer rows.Close()
+
+	var gotCols []string
+	for rows.Next() {
+		var seqno, cid int
+		var name string
+		if err := rows.Scan(&seqno, &cid, &name); err != nil {
+			return fmt.Errorf("scan index_info row: %w", err)
+		}
+		gotCols = append(gotCols, name)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate index_info: %w", err)
+	}
+
+	if len(gotCols) != len(wantCols) {
+		return fmt.Errorf("index %s: got columns %v, want %v", indexName, gotCols, wantCols)
+	}
+	for i, col := range wantCols {
+		if gotCols[i] != col {
+			return fmt.Errorf("index %s: column[%d] is %q, want %q", indexName, i, gotCols[i], col)
+		}
+	}
+
+	log.Printf("Ensured index %s", indexName)
+	return nil
 }
 
 // ensureTable creates the named table if absent, or validates its columns if present.
